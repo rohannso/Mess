@@ -17,7 +17,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -190,7 +191,8 @@ label {
   font-weight: 700;
 }
 
-input {
+input,
+select {
   width: 100%;
   border: 1px solid #cad6cf;
   border-radius: 8px;
@@ -200,7 +202,8 @@ input {
   background: #fbfcfb;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: #235347;
   outline: 3px solid rgba(35, 83, 71, 0.16);
 }
@@ -248,7 +251,7 @@ input:focus {
 
 .table-row {
   display: grid;
-  grid-template-columns: 1.4fr 0.8fr 0.9fr 0.8fr;
+  grid-template-columns: 1.4fr 0.9fr 0.8fr 1.2fr;
   min-width: 620px;
   gap: 0.75rem;
   padding: 0.75rem 0;
@@ -257,7 +260,7 @@ input:focus {
 
 .attendance-row {
   display: grid;
-  grid-template-columns: 1.3fr 0.6fr 0.8fr 0.8fr 0.8fr;
+  grid-template-columns: 1.4fr 0.9fr 0.9fr 0.8fr 0.8fr;
   min-width: 720px;
   gap: 0.75rem;
   align-items: center;
@@ -351,6 +354,34 @@ input:focus {
 .check-btn.checked {
   background: #14633f;
   color: white;
+}
+
+.danger-btn {
+  min-height: 38px;
+  padding: 0.55rem 0.7rem;
+  background: #ffe5e5;
+  color: #b42318;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.meal-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+}
+
+.search-control {
+  max-width: 340px;
+}
+
+.search-control.compact {
+  min-width: 220px;
 }
 
 .rate-form {

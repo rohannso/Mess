@@ -22,13 +22,24 @@ def get_requested_date(request):
         return None
 
 
-def set_attendance_slot(record, slot, present=True):
+def get_meal_type(request):
+    meal_type = request.data.get('meal_type', 'veg')
+    if meal_type not in ('veg', 'nonveg'):
+        return None
+    return meal_type
+
+
+def set_attendance_slot(record, slot, present=True, meal_type='veg'):
     now = datetime.now()
     if slot == 'afternoon':
         record.afternoon = present
+        if present:
+            record.afternoon_meal_type = meal_type
         record.afternoon_time = now if present else None
     elif slot == 'night':
         record.night = present
+        if present:
+            record.night_meal_type = meal_type
         record.night_time = now if present else None
     else:
         return False
@@ -60,7 +71,7 @@ class AttendanceByStudentView(APIView):
             if student is None:
                 user = User.objects.filter(id=student_id, role='student').first()
                 if user is not None:
-                    student, _ = Student.objects.get_or_create(user=user, defaults={'room_number': '', 'monthly_fee': 0})
+                    student, _ = Student.objects.get_or_create(user=user, defaults={'monthly_fee': 0})
 
         if student is None:
             return Response({'detail': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
@@ -75,8 +86,11 @@ class AttendanceByStudentView(APIView):
         record, _ = Attendance.objects.get_or_create(student=student, date=requested_date)
         slot = request.data.get('slot')
         present = request.data.get('present', True)
+        meal_type = get_meal_type(request)
+        if meal_type is None:
+            return Response({'detail': 'Invalid meal type'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not set_attendance_slot(record, slot, present):
+        if not set_attendance_slot(record, slot, present, meal_type):
             return Response({'detail': 'Invalid slot'}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(AttendanceSerializer(record).data)
@@ -88,7 +102,7 @@ class AttendanceMeView(APIView):
     def get_student(self, user):
         student = Student.objects.filter(user=user).first()
         if student is None and user.role == 'student':
-            student, _ = Student.objects.get_or_create(user=user, defaults={'room_number': '', 'monthly_fee': 0})
+            student, _ = Student.objects.get_or_create(user=user, defaults={'monthly_fee': 0})
         return student
 
     def get(self, request):
@@ -111,20 +125,16 @@ class AttendanceMeView(APIView):
 
         record, _ = Attendance.objects.get_or_create(student=student, date=requested_date)
         slot = request.data.get('slot')
-        if slot == 'afternoon':
-            if record.afternoon:
-                return Response({'detail': 'Afternoon attendance already marked'}, status=status.HTTP_400_BAD_REQUEST)
-            record.afternoon = True
-            record.afternoon_time = datetime.now()
-        elif slot == 'night':
-            if record.night:
-                return Response({'detail': 'Night attendance already marked'}, status=status.HTTP_400_BAD_REQUEST)
-            record.night = True
-            record.night_time = datetime.now()
-        else:
+        meal_type = get_meal_type(request)
+        if meal_type is None:
+            return Response({'detail': 'Invalid meal type'}, status=status.HTTP_400_BAD_REQUEST)
+        if slot == 'afternoon' and record.afternoon:
+            return Response({'detail': 'Afternoon attendance already marked'}, status=status.HTTP_400_BAD_REQUEST)
+        if slot == 'night' and record.night:
+            return Response({'detail': 'Night attendance already marked'}, status=status.HTTP_400_BAD_REQUEST)
+        if not set_attendance_slot(record, slot, True, meal_type):
             return Response({'detail': 'Invalid slot'}, status=status.HTTP_400_BAD_REQUEST)
 
-        record.save()
         return Response(AttendanceSerializer(record).data)
 
 

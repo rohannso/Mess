@@ -37,7 +37,6 @@ class RegisterView(APIView):
             Student.objects.get_or_create(
                 user=user,
                 defaults={
-                    'room_number': serializer.validated_data.get('room_number', ''),
                     'monthly_fee': 0,
                 },
             )

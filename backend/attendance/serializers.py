@@ -18,8 +18,10 @@ class AttendanceSerializer(serializers.ModelSerializer):
             'student_email',
             'date',
             'afternoon',
+            'afternoon_meal_type',
             'afternoon_time',
             'night',
+            'night_meal_type',
             'night_time',
             'status',
             'total_amount',
@@ -41,13 +43,25 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
         total = 0
         if obj.afternoon:
-            total += rate.afternoon_rate
+            total += rate.afternoon_nonveg_rate if obj.afternoon_meal_type == 'nonveg' else rate.afternoon_veg_rate
         if obj.night:
-            total += rate.night_rate
+            total += rate.night_nonveg_rate if obj.night_meal_type == 'nonveg' else rate.night_veg_rate
         return f'{total:.2f}'
 
 
 class MealRateSerializer(serializers.ModelSerializer):
     class Meta:
         model = MealRate
-        fields = ('id', 'date', 'afternoon_name', 'afternoon_rate', 'night_name', 'night_rate', 'note')
+        fields = (
+            'id',
+            'date',
+            'afternoon_name',
+            'afternoon_rate',
+            'afternoon_veg_rate',
+            'afternoon_nonveg_rate',
+            'night_name',
+            'night_rate',
+            'night_veg_rate',
+            'night_nonveg_rate',
+            'note',
+        )

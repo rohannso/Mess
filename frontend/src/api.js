@@ -28,8 +28,9 @@ export async function registerUser(payload) {
   return response.json()
 }
 
-export async function fetchStudents(token) {
-  const response = await fetch(`${API_BASE}/students/`, {
+export async function fetchStudents(token, search = '') {
+  const params = search ? `?search=${encodeURIComponent(search)}` : ''
+  const response = await fetch(`${API_BASE}/students/${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
 
@@ -59,6 +60,30 @@ export async function fetchAttendanceHistory(token) {
 
   if (!response.ok) {
     throw new Error('Could not fetch attendance history')
+  }
+
+  return response.json()
+}
+
+export async function deleteStudent(studentId, token) {
+  const response = await fetch(`${API_BASE}/students/${studentId}/`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null)
+    throw new Error(errorData?.detail || 'Student could not be removed')
+  }
+}
+
+export async function fetchStudentAttendance(studentId, token) {
+  const response = await fetch(`${API_BASE}/attendance/student/${studentId}/`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+
+  if (!response.ok) {
+    throw new Error('Could not fetch student report')
   }
 
   return response.json()
@@ -106,14 +131,14 @@ export async function saveMealRate(payload, token) {
   return response.json()
 }
 
-export async function markAttendance(slot, token, date) {
+export async function markAttendance(slot, token, date, mealType = 'veg') {
   const response = await fetch(`${API_BASE}/attendance/me/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ slot, date }),
+    body: JSON.stringify({ slot, date, meal_type: mealType }),
   })
 
   if (!response.ok) {

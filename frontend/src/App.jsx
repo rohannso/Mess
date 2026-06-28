@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  deleteStudent,
   fetchAllAttendance,
   fetchAttendanceHistory,
   fetchCurrentStudent,
   fetchMealRates,
+  fetchStudentAttendance,
   fetchStudents,
   loginUser,
   markAttendance,
@@ -18,7 +20,6 @@ const blankForm = {
   password: '',
   name: '',
   phone: '',
-  room_number: '',
 }
 
 function getSavedSession() {
@@ -45,10 +46,18 @@ function todayIso() {
 const blankRateForm = {
   date: todayIso(),
   afternoon_name: 'Afternoon meal',
-  afternoon_rate: '',
+  afternoon_veg_rate: '',
+  afternoon_nonveg_rate: '',
   night_name: 'Night meal',
-  night_rate: '',
+  night_veg_rate: '',
+  night_nonveg_rate: '',
   note: '',
+}
+
+function getRateAmount(rate, slot, mealType) {
+  if (!rate) return 0
+  const field = `${slot}_${mealType === 'nonveg' ? 'nonveg' : 'veg'}_rate`
+  return rate[field] || 0
 }
 
 function App() {
@@ -59,12 +68,16 @@ function App() {
   const [students, setStudents] = useState([])
   const [studentProfile, setStudentProfile] = useState(null)
   const [studentMarks, setStudentMarks] = useState({ afternoon: false, night: false })
+  const [mealChoices, setMealChoices] = useState({ afternoon: 'veg', night: 'veg' })
   const [selectedDate, setSelectedDate] = useState(todayIso())
   const [adminDate, setAdminDate] = useState(todayIso())
   const [rateForm, setRateForm] = useState(blankRateForm)
   const [mealRates, setMealRates] = useState([])
   const [history, setHistory] = useState([])
   const [allAttendance, setAllAttendance] = useState([])
+  const [studentSearch, setStudentSearch] = useState('')
+  const [selectedStudent, setSelectedStudent] = useState(null)
+  const [selectedStudentReport, setSelectedStudentReport] = useState([])
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('')
   const [loading, setLoading] = useState(false)
@@ -136,6 +149,20 @@ function App() {
     }
   }, [adminDate, allAttendance, students])
 
+  const filteredStudents = useMemo(() => {
+    const value = studentSearch.trim().toLowerCase()
+    if (!value) return students
+    return students.filter((student) => (
+      (student.name || '').toLowerCase().includes(value)
+      || (student.email || '').toLowerCase().includes(value)
+    ))
+  }, [studentSearch, students])
+
+  const selectedStudentTotal = useMemo(
+    () => selectedStudentReport.reduce((total, record) => total + Number(record.total_amount || 0), 0),
+    [selectedStudentReport],
+  )
+
   const selectedDateRecord = useMemo(
     () => history.find((record) => record.date === selectedDate),
     [history, selectedDate],
@@ -178,7 +205,7 @@ function App() {
     if (!session) return
 
     try {
-      const result = await markAttendance(slot, session.access, date)
+      const result = await markAttendance(slot, session.access, date, mealChoices[slot])
       if (date === todayIso()) {
         setStudentMarks((prev) => ({ ...prev, [slot]: true }))
       }
@@ -233,14 +260,50 @@ function App() {
     }
   }
 
+  const handleRemoveStudent = async (student) => {
+    if (!session) return
+
+    try {
+      await deleteStudent(student.id, session.access)
+      setStudents((prev) => prev.filter((item) => item.id !== student.id))
+      setAllAttendance((prev) => prev.filter((item) => item.student !== student.id))
+      if (selectedStudent?.id === student.id) {
+        setSelectedStudent(null)
+        setSelectedStudentReport([])
+      }
+      setMessageType('success')
+      setMessage('Student removed.')
+    } catch (error) {
+      setMessageType('error')
+      setMessage(error.message)
+    }
+  }
+
+  const handleViewStudentReport = async (student) => {
+    if (!session) return
+
+    try {
+      const records = await fetchStudentAttendance(student.id, session.access)
+      setSelectedStudent(student)
+      setSelectedStudentReport(records)
+      setView('student-report')
+      setMessage('')
+    } catch (error) {
+      setMessageType('error')
+      setMessage(error.message)
+    }
+  }
+
   const loadRateIntoForm = (date) => {
     const rate = mealRates.find((item) => item.date === date)
     setRateForm(rate ? {
       date: rate.date,
       afternoon_name: rate.afternoon_name,
-      afternoon_rate: rate.afternoon_rate,
+      afternoon_veg_rate: rate.afternoon_veg_rate,
+      afternoon_nonveg_rate: rate.afternoon_nonveg_rate,
       night_name: rate.night_name,
-      night_rate: rate.night_rate,
+      night_veg_rate: rate.night_veg_rate,
+      night_nonveg_rate: rate.night_nonveg_rate,
       note: rate.note || '',
     } : { ...blankRateForm, date })
   }
@@ -321,16 +384,6 @@ function App() {
                       फोन
                       <input required value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
                     </label>
-                    <div className="field-row">
-                      <label>
-                        रूम नंबर
-                        <input value={form.room_number} onChange={(event) => setForm({ ...form, room_number: event.target.value })} />
-                      </label>
-                      <label>
-                        मासिक फी
-                        <input min="0" type="number" value={form.monthly_fee} onChange={(event) => setForm({ ...form, monthly_fee: event.target.value })} />
-                      </label>
-                    </div>
                   </>
                 )}
                 <label>
@@ -369,8 +422,8 @@ function App() {
                 </div>
                 <div className="card">
                   <h3>Today&apos;s rate</h3>
-                  <p>{mealRates.find((rate) => rate.date === todayIso())?.afternoon_name || 'Afternoon meal'}: {formatMoney(mealRates.find((rate) => rate.date === todayIso())?.afternoon_rate)}</p>
-                  <p>{mealRates.find((rate) => rate.date === todayIso())?.night_name || 'Night meal'}: {formatMoney(mealRates.find((rate) => rate.date === todayIso())?.night_rate)}</p>
+                  <p>{mealRates.find((rate) => rate.date === todayIso())?.afternoon_name || 'Afternoon meal'}: Veg {formatMoney(getRateAmount(mealRates.find((rate) => rate.date === todayIso()), 'afternoon', 'veg'))} / Non-veg {formatMoney(getRateAmount(mealRates.find((rate) => rate.date === todayIso()), 'afternoon', 'nonveg'))}</p>
+                  <p>{mealRates.find((rate) => rate.date === todayIso())?.night_name || 'Night meal'}: Veg {formatMoney(getRateAmount(mealRates.find((rate) => rate.date === todayIso()), 'night', 'veg'))} / Non-veg {formatMoney(getRateAmount(mealRates.find((rate) => rate.date === todayIso()), 'night', 'nonveg'))}</p>
                 </div>
                 <div className="card">
                   <h3>Monthly attendance</h3>
@@ -379,7 +432,6 @@ function App() {
                 </div>
                 <div className="card">
                   <h3>Admission details</h3>
-                  <p>Room: {studentProfile?.room_number || 'Not assigned'}</p>
                   <p>Fee: {formatMoney(studentProfile?.monthly_fee)}</p>
                 </div>
               </div>
@@ -390,7 +442,7 @@ function App() {
                 <div className="card"><h3>{adminDate} afternoon</h3><p className="metric">{adminSummary.afternoon}</p></div>
                 <div className="card"><h3>{adminDate} night</h3><p className="metric">{adminSummary.night}</p></div>
                 <div className="card"><h3>Monthly fee total</h3><p className="metric money">{formatMoney(adminSummary.monthlyCollection)}</p></div>
-                <div className="card"><h3>Day rate</h3><p>{adminDateRate?.afternoon_name || 'Afternoon meal'}: {formatMoney(adminDateRate?.afternoon_rate)}</p><p>{adminDateRate?.night_name || 'Night meal'}: {formatMoney(adminDateRate?.night_rate)}</p></div>
+                <div className="card"><h3>Day rate</h3><p>{adminDateRate?.afternoon_name || 'Afternoon meal'}: Veg {formatMoney(getRateAmount(adminDateRate, 'afternoon', 'veg'))} / Non-veg {formatMoney(getRateAmount(adminDateRate, 'afternoon', 'nonveg'))}</p><p>{adminDateRate?.night_name || 'Night meal'}: Veg {formatMoney(getRateAmount(adminDateRate, 'night', 'veg'))} / Non-veg {formatMoney(getRateAmount(adminDateRate, 'night', 'nonveg'))}</p></div>
               </div>
             )}
           </section>
@@ -412,8 +464,24 @@ function App() {
                   <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
                 </label>
                 <div className="rate-line">
-                  <span>{selectedDateRate?.afternoon_name || 'Afternoon meal'}: {formatMoney(selectedDateRate?.afternoon_rate)}</span>
-                  <span>{selectedDateRate?.night_name || 'Night meal'}: {formatMoney(selectedDateRate?.night_rate)}</span>
+                  <span>{selectedDateRate?.afternoon_name || 'Afternoon meal'}: Veg {formatMoney(getRateAmount(selectedDateRate, 'afternoon', 'veg'))} / Non-veg {formatMoney(getRateAmount(selectedDateRate, 'afternoon', 'nonveg'))}</span>
+                  <span>{selectedDateRate?.night_name || 'Night meal'}: Veg {formatMoney(getRateAmount(selectedDateRate, 'night', 'veg'))} / Non-veg {formatMoney(getRateAmount(selectedDateRate, 'night', 'nonveg'))}</span>
+                </div>
+                <div className="meal-choice-grid">
+                  <label>
+                    Afternoon type
+                    <select value={mealChoices.afternoon} onChange={(event) => setMealChoices({ ...mealChoices, afternoon: event.target.value })}>
+                      <option value="veg">Veg</option>
+                      <option value="nonveg">Non-veg</option>
+                    </select>
+                  </label>
+                  <label>
+                    Night type
+                    <select value={mealChoices.night} onChange={(event) => setMealChoices({ ...mealChoices, night: event.target.value })}>
+                      <option value="veg">Veg</option>
+                      <option value="nonveg">Non-veg</option>
+                    </select>
+                  </label>
                 </div>
                 <div className="pill-row">
                   <button className={`attendance-btn ${selectedDateRecord?.afternoon ? 'success-btn' : ''}`} disabled={selectedDateRecord?.afternoon} onClick={() => handleAttendance('afternoon')}>
@@ -452,32 +520,37 @@ function App() {
             <div className="card">
               <h3>{adminDateRate?.note || 'Meal rates'}</h3>
               <div className="rate-line">
-                <span>{adminDateRate?.afternoon_name || 'Afternoon meal'}: {formatMoney(adminDateRate?.afternoon_rate)}</span>
-                <span>{adminDateRate?.night_name || 'Night meal'}: {formatMoney(adminDateRate?.night_rate)}</span>
+                <span>{adminDateRate?.afternoon_name || 'Afternoon meal'}: Veg {formatMoney(getRateAmount(adminDateRate, 'afternoon', 'veg'))} / Non-veg {formatMoney(getRateAmount(adminDateRate, 'afternoon', 'nonveg'))}</span>
+                <span>{adminDateRate?.night_name || 'Night meal'}: Veg {formatMoney(getRateAmount(adminDateRate, 'night', 'veg'))} / Non-veg {formatMoney(getRateAmount(adminDateRate, 'night', 'nonveg'))}</span>
               </div>
             </div>
+
+            <label className="search-control">
+              Search students
+              <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="Name or email" />
+            </label>
 
             <div className="table-card">
               <div className="attendance-row table-head">
                 <span>Student</span>
-                <span>Room</span>
                 <span>Afternoon</span>
                 <span>Night</span>
                 <span>Amount</span>
+                <span>Report</span>
               </div>
-              {students.map((student) => {
+              {filteredStudents.map((student) => {
                 const record = allAttendance.find((item) => item.student === student.id && item.date === adminDate)
                 return (
                   <div className="attendance-row" key={student.id}>
                     <span>{student.name || student.email}</span>
-                    <span>{student.room_number || '-'}</span>
                     <button className={record?.afternoon ? 'check-btn checked' : 'check-btn'} onClick={() => handleAdminAttendance(student.id, 'afternoon')}>
-                      {record?.afternoon ? 'Marked' : 'Mark'}
+                      {record?.afternoon ? `${record.afternoon_meal_type} marked` : 'Mark'}
                     </button>
                     <button className={record?.night ? 'check-btn checked' : 'check-btn'} onClick={() => handleAdminAttendance(student.id, 'night')}>
-                      {record?.night ? 'Marked' : 'Mark'}
+                      {record?.night ? `${record.night_meal_type} marked` : 'Mark'}
                     </button>
                     <span>{formatMoney(record?.total_amount)}</span>
+                    <button className="check-btn" onClick={() => handleViewStudentReport(student)}>View</button>
                   </div>
                 )
               })}
@@ -520,8 +593,12 @@ function App() {
                   <input value={rateForm.afternoon_name} onChange={(event) => setRateForm({ ...rateForm, afternoon_name: event.target.value })} />
                 </label>
                 <label>
-                  Afternoon rate
-                  <input min="0" type="number" value={rateForm.afternoon_rate} onChange={(event) => setRateForm({ ...rateForm, afternoon_rate: event.target.value })} />
+                  Afternoon veg rate
+                  <input min="0" type="number" value={rateForm.afternoon_veg_rate} onChange={(event) => setRateForm({ ...rateForm, afternoon_veg_rate: event.target.value })} />
+                </label>
+                <label>
+                  Afternoon non-veg rate
+                  <input min="0" type="number" value={rateForm.afternoon_nonveg_rate} onChange={(event) => setRateForm({ ...rateForm, afternoon_nonveg_rate: event.target.value })} />
                 </label>
               </div>
               <div className="field-row">
@@ -530,8 +607,12 @@ function App() {
                   <input value={rateForm.night_name} onChange={(event) => setRateForm({ ...rateForm, night_name: event.target.value })} />
                 </label>
                 <label>
-                  Night rate
-                  <input min="0" type="number" value={rateForm.night_rate} onChange={(event) => setRateForm({ ...rateForm, night_rate: event.target.value })} />
+                  Night veg rate
+                  <input min="0" type="number" value={rateForm.night_veg_rate} onChange={(event) => setRateForm({ ...rateForm, night_veg_rate: event.target.value })} />
+                </label>
+                <label>
+                  Night non-veg rate
+                  <input min="0" type="number" value={rateForm.night_nonveg_rate} onChange={(event) => setRateForm({ ...rateForm, night_nonveg_rate: event.target.value })} />
                 </label>
               </div>
               <button type="submit">Save rates</button>
@@ -541,8 +622,8 @@ function App() {
               {mealRates.slice(0, 20).map((rate) => (
                 <button className="rate-card" key={rate.id} onClick={() => { setAdminDate(rate.date); loadRateIntoForm(rate.date) }}>
                   <span className="calendar-date">{rate.date}</span>
-                  <span>{rate.afternoon_name}: {formatMoney(rate.afternoon_rate)}</span>
-                  <span>{rate.night_name}: {formatMoney(rate.night_rate)}</span>
+                  <span>{rate.afternoon_name}: Veg {formatMoney(rate.afternoon_veg_rate)} / Non-veg {formatMoney(rate.afternoon_nonveg_rate)}</span>
+                  <span>{rate.night_name}: Veg {formatMoney(rate.night_veg_rate)} / Non-veg {formatMoney(rate.night_nonveg_rate)}</span>
                   {rate.note && <span>{rate.note}</span>}
                 </button>
               ))}
@@ -563,8 +644,8 @@ function App() {
               {history.slice(0, 30).map((record) => (
                 <div key={record.id} className={`calendar-item ${record.status}`}>
                   <span className="calendar-date">{record.date}</span>
-                  <span>{record.afternoon ? 'Afternoon' : 'No afternoon'}</span>
-                  <span>{record.night ? 'Night' : 'No night'}</span>
+                  <span>{record.afternoon ? `Afternoon (${record.afternoon_meal_type})` : 'No afternoon'}</span>
+                  <span>{record.night ? `Night (${record.night_meal_type})` : 'No night'}</span>
                   <span>{formatMoney(record.total_amount)}</span>
                 </div>
               ))}
@@ -584,7 +665,6 @@ function App() {
             <div className="card-grid">
               <div className="card">
                 <p>Email: {session?.user?.email || 'Not available'}</p>
-                <p>Room: {studentProfile?.room_number || 'Not assigned'}</p>
                 <p>Monthly fee: {formatMoney(studentProfile?.monthly_fee)}</p>
                 <p>Joined: {studentProfile?.joining_date || 'Not available'}</p>
               </div>
@@ -599,23 +679,58 @@ function App() {
                 <p className="eyebrow">Admissions</p>
                 <h2>Student list</h2>
               </div>
+              <label className="search-control compact">
+                Search
+                <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="Name or email" />
+              </label>
             </div>
             <div className="table-card">
               <div className="table-row table-head">
                 <span>Name</span>
-                <span>Room</span>
                 <span>Monthly fee</span>
                 <span>Status</span>
+                <span>Actions</span>
               </div>
-              {students.map((student) => (
+              {filteredStudents.map((student) => (
                 <div className="table-row" key={student.id}>
                   <span>{student.name || student.email}</span>
-                  <span>{student.room_number || '-'}</span>
                   <span>{formatMoney(student.monthly_fee)}</span>
                   <span>{student.active ? 'Active' : 'Inactive'}</span>
+                  <span className="action-row">
+                    <button className="check-btn" onClick={() => handleViewStudentReport(student)}>Report</button>
+                    <button className="danger-btn" onClick={() => handleRemoveStudent(student)}>Remove</button>
+                  </span>
                 </div>
               ))}
             </div>
+            {message && <p className={messageType === 'success' ? 'message-success' : 'error-text'}>{message}</p>}
+          </section>
+        )}
+
+        {view === 'student-report' && role === 'admin' && selectedStudent && (
+          <section className="panel">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Student report</p>
+                <h2>{selectedStudent.name || selectedStudent.email}</h2>
+              </div>
+              <button className="secondary-btn" onClick={() => setView('students')}>Back</button>
+            </div>
+            <div className="card-grid">
+              <div className="card"><h3>Total records</h3><p className="metric">{selectedStudentReport.length}</p></div>
+              <div className="card"><h3>Total amount</h3><p className="metric money">{formatMoney(selectedStudentTotal)}</p></div>
+            </div>
+            <div className="calendar-grid">
+              {selectedStudentReport.slice(0, 60).map((record) => (
+                <div key={record.id} className={`calendar-item ${record.status}`}>
+                  <span className="calendar-date">{record.date}</span>
+                  <span>{record.afternoon ? `Afternoon (${record.afternoon_meal_type})` : 'No afternoon'}</span>
+                  <span>{record.night ? `Night (${record.night_meal_type})` : 'No night'}</span>
+                  <span>{formatMoney(record.total_amount)}</span>
+                </div>
+              ))}
+            </div>
+            {selectedStudentReport.length === 0 && <p className="empty-state">No attendance records yet.</p>}
           </section>
         )}
       </main>

@@ -7,16 +7,14 @@ User = get_user_model()
 class RegisterSerializer(serializers.ModelSerializer):
     name = serializers.CharField(write_only=True, required=False, allow_blank=True)
     password = serializers.CharField(write_only=True)
-    room_number = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ('id', 'name', 'phone', 'email', 'password', 'room_number')
+        fields = ('id', 'name', 'phone', 'email', 'password')
 
     def create(self, validated_data):
         password = validated_data.pop('password')
         full_name = validated_data.pop('name', '')
-        validated_data.pop('room_number', None)
         first_name = full_name
         last_name = ''
         if ' ' in full_name:
