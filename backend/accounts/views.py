@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.http import JsonResponse
 
 from .serializers import LoginSerializer, RegisterSerializer
 
@@ -37,7 +38,7 @@ class RegisterView(APIView):
                 user=user,
                 defaults={
                     'room_number': serializer.validated_data.get('room_number', ''),
-                    'monthly_fee': serializer.validated_data.get('monthly_fee', 0),
+                    'monthly_fee': 0,
                 },
             )
 
@@ -68,3 +69,15 @@ class LoginView(APIView):
                     }
                 )
         return Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+def create_admin(request):
+    User = get_user_model()
+    if not User.objects.filter(email='admin@example.com').exists():
+        User.objects.create_superuser(
+            email='admin@example.com',
+            password='yourpassword123',
+            phone='0000000000',
+        )
+        return JsonResponse({'status': 'Superuser created'})
+    return JsonResponse({'status': 'Already exists'})

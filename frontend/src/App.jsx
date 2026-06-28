@@ -19,7 +19,6 @@ const blankForm = {
   name: '',
   phone: '',
   room_number: '',
-  monthly_fee: '',
 }
 
 function getSavedSession() {
