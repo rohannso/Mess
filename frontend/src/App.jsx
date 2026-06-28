@@ -290,23 +290,23 @@ function App() {
         {view === 'login' && (
           <section className="auth-layout">
             <div className="auth-copy">
-              <p className="eyebrow">Mess Admission</p>
-              <h2>{authMode === 'login' ? 'Sign in to manage your meals.' : 'Apply for mess admission.'}</h2>
+              <p className="eyebrow">मेस प्रवेश</p>
+              <h2>{authMode === 'login' ? 'घरगुती चवीचा हिशोब, आता एका क्लिकवर.' : 'चविष्ट जेवणासाठी आजच प्रवेश घ्या.'}</h2>
               <p className="muted-text">
-                Students can submit admission details, then mark daily lunch and dinner attendance after login.
+                प्रवेश तपशील भरा, लॉगिन करा आणि रोजचे दुपारचे व रात्रीचे जेवण सहज नोंदवा.
               </p>
               <div className="quick-stats">
-                <span>Student admission</span>
-                <span>Daily attendance</span>
-                <span>Fee records</span>
+                <span>विद्यार्थी प्रवेश</span>
+                <span>दैनिक उपस्थिती</span>
+                <span>फी नोंदी</span>
               </div>
             </div>
 
             <div className="form-card">
               <div className="form-heading">
-                <h3>{authMode === 'login' ? 'Login' : 'Admission form'}</h3>
+                <h3>{authMode === 'login' ? 'लॉगिन' : 'प्रवेश अर्ज'}</h3>
                 <button className="text-link" onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>
-                  {authMode === 'login' ? 'New admission' : 'Back to login'}
+                  {authMode === 'login' ? 'नवीन प्रवेश' : 'लॉगिनकडे परत'}
                 </button>
               </div>
 
@@ -314,34 +314,34 @@ function App() {
                 {authMode === 'register' && (
                   <>
                     <label>
-                      Full name
+                      पूर्ण नाव
                       <input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
                     </label>
                     <label>
-                      Phone
+                      फोन
                       <input required value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
                     </label>
                     <div className="field-row">
                       <label>
-                        Room number
+                        रूम नंबर
                         <input value={form.room_number} onChange={(event) => setForm({ ...form, room_number: event.target.value })} />
                       </label>
                       <label>
-                        Monthly fee
+                        मासिक फी
                         <input min="0" type="number" value={form.monthly_fee} onChange={(event) => setForm({ ...form, monthly_fee: event.target.value })} />
                       </label>
                     </div>
                   </>
                 )}
                 <label>
-                  Email
+                  ईमेल
                   <input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
                 </label>
                 <label>
-                  Password
+                  पासवर्ड
                   <input required minLength="6" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
                 </label>
-                <button type="submit" disabled={loading}>{loading ? 'Working...' : authMode === 'login' ? 'Login' : 'Submit admission'}</button>
+                <button type="submit" disabled={loading}>{loading ? 'थांबा...' : authMode === 'login' ? 'लॉगिन करा' : 'प्रवेश पाठवा'}</button>
               </form>
 
               {message && <p className={messageType === 'success' ? 'message-success' : 'error-text'}>{message}</p>}
